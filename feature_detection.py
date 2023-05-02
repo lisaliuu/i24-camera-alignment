@@ -396,13 +396,6 @@ def main():
                 csv_data = format_to_csv(image_name,num_good, M_rot, E_rot1, E_rot2 )
                 writer.writerow(csv_data)
 
-        # elif (ALGO=="surf"):
-        #     print("Starting SURF algorithm...")
-        #     for image_name in image_names:
-        #         M_rot, E_rot = surf_algo(filename=f'{foldername}/', ref_file_name=ref_filename, img_file_name=image_name, out_file_postfix=image_name[11:][:-4])
-        #         csv_data = format_to_csv(image_name, M_rot, E_rot1, E_rot2 )
-        #         writer.writerow(csv_data)
-
         else:
             print("Invalid")
 
