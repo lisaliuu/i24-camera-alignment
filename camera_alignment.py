@@ -14,10 +14,10 @@ BRISK_MIN_MATCH_COUNT = 4
 # Intinsic Camera Matrix
 CAM_INTR = np.array([[1489.6, 0, 920.5],[0, 1476.1, 571.6],[0, 0, 1]])
 
-user = 'root'
-password  = 'i24camadmin1025'
-profile = '1080p_h264'
-host = '10.80.134.62'
+user = None
+password = None
+profile = None
+host = None
 url = f'rtsp://{user}:{password}@{host}/axis-media/media.amp?streamprofile={profile}'
 cam=StreamProfileRequests()
 cam.set_credentials(host, user, password)
