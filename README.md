@@ -11,7 +11,7 @@ Aligns camera with a given reference image using homography and BRISK feature de
 **(lines 354 - 392):** Finally, the camera adjusts its tilt according to the rotation matrix (x axis) by repeatedly calculating homography **(line 378)** until the tilt angle difference is < 0.5°.
 
 ## Assumptions:
-##### The following assumptions are made based on data gathered on the calculated rotation matrix from the 6 cameras.
+##### The following assumptions are made based on [data](cam_rot_results.xlsx) gathered on the calculated rotation matrix from the 6 cameras.
 
 - [OpenCV's](https://docs.opencv.org/3.4/d9/d0c/group__calib3d.html#ga7f60bdff78833d1e3fd6d9d0fd538d92) `decomposeHomographyMat()` returns 4 rotation matrices (unless ref_image is the same as camera view, then one array ([0, 0, 0]) is returned), of which the 1st and 2nd matrices are the same, and 3rd and 4th matrices are the same.
 - 200 matched or "good" feature points produces valid homography
