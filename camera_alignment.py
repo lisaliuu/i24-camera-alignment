@@ -4,8 +4,8 @@ import numpy as np
 import os
 import math
 from streamprofile_batch import StreamProfileRequests
-import time
 from matplotlib import pyplot as plt
+import time
 
 # BRISK Constants
 BRISK_LOWE_DIST_RATIO = .75
@@ -14,31 +14,41 @@ BRISK_MIN_MATCH_COUNT = 4
 # Intinsic Camera Matrix
 CAM_INTR = np.array([[1489.6, 0, 920.5],[0, 1476.1, 571.6],[0, 0, 1]])
 
-user = None
+# Camera object
+user = None #CHANGE
 password = None
 profile = None
 host = None
 url = f'rtsp://{user}:{password}@{host}/axis-media/media.amp?streamprofile={profile}'
-cam=StreamProfileRequests()
+cam = StreamProfileRequests()
 cam.set_credentials(host, user, password)
 
-def process(frm):
-    
+def save_picture(frm):
+    '''
+    Saves view of camera as jpg image
+    :param frm: frame to save
+    :return: (string) filepath of frame saved
+    '''
     # Display the resulting frame
     # cv.imshow('Frame',frm)
     position=cam.get_position()
     pan=position["pan"]
     tilt=position["tilt"]
-    foldername = 'cam2/'
+    foldername = 'cam2/' #CHANGE: folder to save images taken
     filename=f'{host}_p{pan}_t{tilt}.jpg'
-    print("writing out file to", foldername+filename)
-    cv.imwrite(foldername+filename,frm)
+    filepath = foldername+filename
+    print("writing out file to", filepath)
+    cv.imwrite(filepath,frm)
 
-    return filename
+    return filepath
 
 
 def take_picture():
-    # print("opening video")
+    '''
+    Saves view of camera as jpg image
+    :return: (string) filename of frame saved
+    '''
+    print("opening video")
     cap = cv.VideoCapture(url,cv.CAP_FFMPEG)
 
     if not cap.isOpened():
@@ -58,27 +68,19 @@ def take_picture():
             if sumFrame is None:
                 sumFrame = frame.astype(np.float64)
                 sumCnt = 0
-                # print('new frame')
             else:
                 sumFrame = sumFrame + frame
                 sumCnt +=1
-                # print('add frame')
-
             if sumCnt >= sumSize:
                 sumFrame = sumFrame / sumSize
-                
                 frm = sumFrame.astype(np.uint8)
-
                 if picNum==1:
-                    # print("keeping pic")
-                    filename = process(frm)
-                    tilt=(float)(cam.get_position()["tilt"])
-                    pan=(float)(cam.get_position()["pan"])
+                    # Saving every other picture
+                    filename = save_picture(frm)
                     sumFrame = None
                     picNum=0
                     break
                 else:
-                    # print("throwing away pic")
                     picNum=picNum+1
                     sumFrame = None
 
@@ -92,20 +94,20 @@ def take_picture():
 
     return filename
 
-def read_image(foldername, image_filename):
+def read_image(image_path):
     '''
     Read in image file
-    :param foldername: name of folder where image is
-    :param image_filename: name of image file
-    :return: image as np array
+    :param image_path: directory path of image file
+    :return: (np array) image
     '''
-    print(": Reading image: ", foldername+image_filename)
-    img = cv.imread(foldername+image_filename, cv.COLOR_BGR2GRAY)
+    print(": Reading image: ", image_path)
+    img = cv.imread(image_path, cv.COLOR_BGR2GRAY)
     return img
 
 
 def read_snapshot_360(foldername):
     '''
+    NOT USED
     Reads in 360 degrees of images at 20 degree intervals starting from position of image
     :param foldername: name of folder where images are
     :return: array of images
@@ -121,10 +123,10 @@ def read_snapshot_360(foldername):
 
 def calculate_rot_matrix(ref_img, img):
     '''
-    Calculates rotation for an image with BRISK from homography
+    Calculates homography and rotation matrix of an image to a reference image with BRISK feature detection
     :param ref_img: reference image
     :param img: destination image
-    :return: number of good matches, rotation matrix from homography
+    :return: (int, np array) number of good matches, rotation matrix from homography
     '''
     # Initiate BRISK detector
     brisk = cv.BRISK_create()
@@ -162,18 +164,23 @@ def calculate_rot_matrix(ref_img, img):
     return len(good), M_rot
 
 def isRotationMatrix(R) :
+    '''
+    Checks rotation matrix validity
+    :param R: rotation matrix
+    :return: (bool) validity of rotation matrix
+    '''
     Rt = np.transpose(R)
     shouldBeIdentity = np.dot(Rt, R)
     I = np.identity(3, dtype = R.dtype)
     n = np.linalg.norm(I - shouldBeIdentity)
     return n < 1e-6
  
-def rotationMatrixToEulerAngles(R) :
+def rotation_matrix_to_euler(R) :
     '''
     Derives Euler angles from rotation matrix
     The result is the same as MATLAB except the order of the euler angles ( x and z are swapped ).
     :param R: rotation matrix
-    :return: tuple of Euler angles
+    :return: (np array) tuple of Euler angles
     '''
     if not isRotationMatrix(R):
         print("ERROR IN ROT MATRIX")
@@ -194,59 +201,50 @@ def rotationMatrixToEulerAngles(R) :
 
 def calculate_degrees(rot):
     '''
-    Calculates array of angles in degrees from rotation matrix
+    Calculates angles in degrees from rotation matrix
     :param rot: rotation matrix
-    :return: tuple of angles in degrees
+    :return: (np array) tuple of angles in degrees
     '''
-    euler_angles = rotationMatrixToEulerAngles(rot)
+    euler_angles = rotation_matrix_to_euler(rot)
     degrees_angles = euler_angles
     for j in range(3):
         degrees_angles[j]=degrees_angles[j]*180/3.1415
     return degrees_angles
 
-
-# sanity check for panning
 def check_rot_array_pan(rot_degrees1, rot_degrees2):
     '''
-    Sanity check for panning
+    Sanity check for rotation array(s) calculated for panning
     :param rot_degrees1: array of rotation in degrees
     :param rot_degrees2: array of rotation in degrees
     :return: None
     '''
-    c1 = rot_degrees1[0]<rot_degrees1[1] and rot_degrees1[0]<rot_degrees1[2]
-    c3 = rot_degrees1[0]>rot_degrees1[1] and rot_degrees1[0]>rot_degrees1[2]
-    c5 = all(i < 100 for i in rot_degrees1)
-    c7 = rot_degrees1[1]<=0 and rot_degrees1[2]<=0 or rot_degrees2[1]>=0 and rot_degrees2[2]>=0
+    # Checks if all degrees<100, otherwise images are of completely different views and should not have found good feature points
+    c1 = all(i < 100 for i in rot_degrees1)
+    # Checks if panning degrees are of the same sign
+    c3 = rot_degrees1[1]<=0 and rot_degrees1[2]<=0 or rot_degrees2[1]>=0 and rot_degrees2[2]>=0
+
+    # If second rotation matrix exists
     if rot_degrees2 is not None:
-        c2 = rot_degrees2[0]<rot_degrees2[1] and rot_degrees2[0]<rot_degrees2[2]
-        c4 = rot_degrees2[0]>rot_degrees2[1] and rot_degrees2[0]>rot_degrees2[2]
-        c6 = all(i < 100 for i in rot_degrees2)
-        c8 =  rot_degrees2[1]<=0 and rot_degrees2[2]<=0 or rot_degrees2[1]>=0 and rot_degrees2[2]>=0
-        # print("checking degrees are of the similar relative magnitude...")
-        # assert((c1 and c2) or (c3 and c4))
-        # print("checking degrees are less than 100...")
-        assert (c5 and c6)
-        # print("checking degrees are of the same sign...")
-        # small enough
+        c2 = all(i < 100 for i in rot_degrees2)
+        c4 =  rot_degrees2[1]<=0 and rot_degrees2[2]<=0 or rot_degrees2[1]>=0 and rot_degrees2[2]>=0
+        assert (c1 and c2)
+        # Sign uniformity is not applicable for small angles
         if not (abs(rot_degrees1[1])<1 and abs(rot_degrees1[2])<1 and abs(rot_degrees2[1])<1 and abs(rot_degrees2[2])<1):
-            assert(c7 or c8)
-
+            assert(c3 or c4)
+    # If only one rotation matrix exists
     else:
-        # print("checking degrees are of the similar relative magnitude...")
-        # assert(c1 or c3)
-        # print("checking degrees are less than 100...")
-        assert(c5)
-        # print("checking degrees are of the same sign...")
+        assert(c1)
         if not (abs(rot_degrees1[1])<1 and abs(rot_degrees1[2])<1):
-            assert(c7)  
+            assert(c3)  
 
-def check_rot_arr_tilt(rot_degrees1, rot_degrees2):
+def check_rot_array_tilt(rot_degrees1, rot_degrees2):
     '''
-    Sanity check for tilting
+    Sanity check rotation array(s) for tilting
     :param rot_degrees1: array of rotation in degrees
     :param rot_degrees2: array of rotation in degrees
     :return: None
     '''
+    # Checks if panning angles<2, should have been corrected by panning already
     c1 = abs(rot_degrees1[1])<2 and abs(rot_degrees1[2])<2
     if rot_degrees2 is not None:
         c2 = abs(rot_degrees2[1])<2 and abs(rot_degrees2[2])<2
@@ -256,175 +254,145 @@ def check_rot_arr_tilt(rot_degrees1, rot_degrees2):
 
 
 def main():
-    found_ref_pos = False
-    reached_edge = False
+    found_ref_view = False # Found enough matching feature points
+    reached_edge = False # Camera is pointing down completely at the edge of tilt boundary
 
-    foldername="cam2/"
-    ref_image_name = "ref_image.jpg"
-    image_name = None
+    ref_image_filepath = "cam2/ref_image.jpg" #CHANGE: reference image filepath
 
-    ref_image = read_image(foldername, ref_image_name)
-    # image = read_image(foldername, image)
+    ref_image = read_image(ref_image_filepath)
 
-    # folder_tilt = "cam1/pan360_tilt_0/"
-    tilted=0
+    tilted = 0
     panned = 0
 
-    while not found_ref_pos:
+    while not found_ref_view:
         while panned <= 18:
-            # images_360 = read_snapshot_360(folder_tilt)
-            # for snapshot in images_360:
-            print(f"Panning {panned} ...")
-            snapshot = take_picture()
-            # print("file name is ", new_filename)
-            snap_image = read_image(foldername, snapshot)
+            print(f"[SCANNING] Panning #{panned} ...")
+            snapshot_filepath = take_picture()
+            snap_image = read_image(snapshot_filepath)
             num_points_matched, rot_matrices = calculate_rot_matrix(ref_img=ref_image, img=snap_image)
             if num_points_matched>200:
-                print(f"Found a good match with {num_points_matched} good points")
+                print(f"[SCANNING] Found a good match with {num_points_matched} good points")
                 # plt.imshow(image, 'gray'),plt.show()
                 # time.sleep(5)
-                found_ref_pos = True
-                recognized_image = snapshot
+                found_ref_view = True
+                recognized_image = snapshot_filepath
                 break
             else:
-                print(f"Not enough good matches: {num_points_matched}")
+                print(f"[SCANNING] Not enough good matches: {num_points_matched}")
             cam.move(float(cam.get_position()["pan"])+20, float(cam.get_position()["tilt"]))
             panned+=1
 
-        if not found_ref_pos:
-            # go down until reached bottom, go up until 0 -> scanned everything
+        if not found_ref_view:
+            # scanned 360 degrees at current tilt angle, tilt down (or up) and pan again
             tilted+=1
             panned = 0
             if not reached_edge:
-                print(f"Tilting {tilted} ...")
-                # folder_tilt = f'pan360_tilt_{tilted}'
+                print(f"[SCANNING] Tilting #{tilted} ...")
                 prev_tilt = float(cam.get_position()["tilt"])
                 cam.move(float(cam.get_position()["pan"]), float(cam.get_position()["tilt"])-20)
                 cur_tilt = float(cam.get_position()["tilt"])
-                if prev_tilt<cur_tilt: #reached the bottom
-                    print("Reached the bottom")
-                    cam.move(cam.get_position()["pan"], cam.get_position()["tilt"]+20)
+                if prev_tilt<cur_tilt: #reached the bottom boundary, tilt up instead
+                    print("[SCANNING] Reached the bottom")
+                    cam.move(cam.get_position()["pan"], cam.get_position()["tilt"]+40)
                     reached_edge = True
             else:
                 cam.move(cam.get_position()["pan"], cam.get_position()["tilt"]+20)
                 if(tilted==9):
-                    raise Exception("Scanned everything, could not find matching snapshot")
-    
-    # print(recognized_image)
-    recognized_image_split = recognized_image.split('_')
+                    # panned 18 * 20 = 360 degrees and tilted 9 * 20 = 180 degrees
+                    raise Exception("[SCANNING] Scanned everything, could not find matching snapshot")
+
+    recognized_image_split = recognized_image.split('_') # Parsing saved file's name
     abs_pan = float(recognized_image_split[1][1:])
     abs_tilt = float(recognized_image_split[2][1:][:-4])
-    print(cam.move(abs_pan, abs_tilt))
-    print(f"Moving to recognized position: pan {abs_pan} tilt {abs_tilt}")
-    
+    print(f"[SCANNING] Moving to recognized position: pan {abs_pan} tilt {abs_tilt}")
+
+    rot2 = None
+    rot_degrees2 = None
+    print(f"[CORRECTING] Start panning...")
     rot1 = rot_matrices[0]
     rot_degrees1 = calculate_degrees(rot1)
-    rot_degrees2 = None
-    if (len(rot_matrices)>2):
-        print("There are 2 choices for rotation")
+    if (len(rot_matrices)>2): # 1 or 2 rotation array(s) calculated
         rot2 = rot_matrices[2]
         rot_degrees2 = calculate_degrees(rot2)
         max_degree_pan = max(abs(rot_degrees1[1]), abs(rot_degrees1[2]), abs(rot_degrees2[1]), abs(rot_degrees2[2]))
     else:
-        print("There is 1 choice for rotation")
         max_degree_pan = max(abs(rot_degrees1[1]), abs(rot_degrees1[2]))
-
     check_rot_array_pan(rot_degrees1=rot_degrees1, rot_degrees2=rot_degrees2)
-
     if(rot_degrees1[1]<0):
-        print("degree is negative")
         max_degree_pan = -max_degree_pan
     
-    print(f"Start with this panning rotation fix {max_degree_pan}")
     prev_max_degree_pan = 360
-
     while(abs(max_degree_pan)>1):
-        print(f"Panning by {max_degree_pan}")
-        # panning motion first
-        assert(abs(prev_max_degree_pan)>abs(max_degree_pan))
+        assert(abs(prev_max_degree_pan)>abs(max_degree_pan)) # Checks that angle difference is getting smaller
         prev_max_degree_pan = max_degree_pan
-        # go the other way
+
+        print(f"[CORRECTING] Panning by {max_degree_pan}...")
         cam.move(float(cam.get_position()["pan"])-max_degree_pan, float(cam.get_position()["tilt"]))
         new_pan = float(cam.get_position()["pan"])
         new_tilt = float(cam.get_position()["tilt"])
-        print(f'New position after pan: pan {new_pan} | tilt {new_tilt}')
-        new_filename = take_picture()
-        # new_filename = f'{host}_p{new_pan}_t{new_tilt}.jpg'
-        print("file name is ", new_filename)
-        image_moved = read_image(foldername, new_filename)
+        print(f'[CORRECTING] New position after pan: pan {new_pan}, tilt {new_tilt}')
+        new_filepath = take_picture()
+        image_moved = read_image(new_filepath)
         num_points_matched, rot_matrices = calculate_rot_matrix(ref_img=ref_image, img=image_moved)
+
+        rot2 = None
+        rot_degrees2 = None
         rot1 = rot_matrices[0]
-        rot2 = rot_matrices[2]
         rot_degrees1 = calculate_degrees(rot1)
-        rot_degrees2 = calculate_degrees(rot2)
-        
-        if (len(rot_matrices)>2):
-            print("There are 2 choices for rotation")
+        if (len(rot_matrices)>2): # 1 or 2 rotation array(s) calculated
             rot2 = rot_matrices[2]
             rot_degrees2 = calculate_degrees(rot2)
             max_degree_pan = max(abs(rot_degrees1[1]), abs(rot_degrees1[2]), abs(rot_degrees2[1]), abs(rot_degrees2[2]))
         else:
-            print("There is 1 choice for rotation")
             max_degree_pan = max(abs(rot_degrees1[1]), abs(rot_degrees1[2]))
-            
-        if(rot_degrees1[1]<0):
+        if(rot_degrees1[1]<0): # Restoring sign
             max_degree_pan = -max_degree_pan
-
         check_rot_array_pan(rot_degrees1=rot_degrees1, rot_degrees2=rot_degrees2)
-
-        
-        print(f"Correcting with {max_degree_pan} degree pan")
     
     final_pan = float(cam.get_position()["pan"])
     final_tilt = float(cam.get_position()["tilt"])
-    print(f"Done panning. Position is now pan {final_pan} tilt {final_tilt}")
+    print(f"[CORRECTING] Done panning. Position is now pan: {final_pan}, tilt: {final_tilt}")
 
-    print(f"Start tilting...")
-    if rot_degrees2 is not None:
+
+    print(f"[CORRECTING] Start tilting...")
+    if (len(rot_matrices)>2): # 1 or 2 rotation array(s) calculated
         max_degree_tilt = max(abs(rot_degrees1[0]), abs(rot_degrees2[0]))
     else:
         max_degree_tilt = max(abs(rot_degrees1[0]))
-
-    check_rot_arr_tilt(rot_degrees1=rot_degrees1, rot_degrees2=rot_degrees2)
-    if(rot_degrees1[0]<0):
+    check_rot_array_tilt(rot_degrees1=rot_degrees1, rot_degrees2=rot_degrees2)
+    if(rot_degrees1[0]<0): # Restoring sign
         max_degree_tilt = -max_degree_tilt
 
-    print(f"Start with this tilting rotation fix {max_degree_tilt}")
-    rot1 = None
-    rot2 = None
-    rot_degrees1 = None
-    rot_degrees2 = None
     prev_max_degree_tilt = 360
     while(abs(max_degree_tilt)>.5):
-        print(f"Tilting by {max_degree_tilt}")
-        assert(abs(prev_max_degree_tilt)>abs(max_degree_tilt))
+        assert(abs(prev_max_degree_tilt)>abs(max_degree_tilt)) # Checks that angle difference is getting smaller
         prev_max_degree_tilt = max_degree_tilt
+
+        print(f"[CORRECTING] Tilting by {max_degree_tilt}")
         cam.move(float(cam.get_position()["pan"]), float(cam.get_position()["tilt"])-max_degree_tilt)
         new_pan = float(cam.get_position()["pan"])
         new_tilt = float(cam.get_position()["tilt"])
-        print(f'New position after tilt: pan {new_pan} | tilt {new_tilt}')
-
-        # new_filename = f'{host}_p{new_pan}_t{new_tilt}.jpg'
-        new_filename = take_picture()
-        image_moved = read_image(foldername, new_filename)
+        print(f'[CORRECTING] New position after tilt: pan: {new_pan}, tilt: {new_tilt}')
+        new_filepath = take_picture()
+        image_moved = read_image(new_filepath)
         num_points_matched, rot_matrices = calculate_rot_matrix(ref_img=ref_image, img=image_moved)
+        
+        rot2 = None
+        rot_degrees2 = None
         rot1 = rot_matrices[0]
         rot_degrees1 = calculate_degrees(rot1)
-        if (len(rot_matrices)>2):
+        if (len(rot_matrices)>2): # 1 or 2 rotation array(s) calculated
             rot2 = rot_matrices[2]
             rot_degrees2 = calculate_degrees(rot2)
             max_degree_tilt = max(abs(rot_degrees1[0]), abs(rot_degrees2[0]))
         else:
             max_degree_tilt = max(abs(rot_degrees1[0]))
-
-        check_rot_arr_tilt(rot_degrees1=rot_degrees1, rot_degrees2=rot_degrees2)
+        check_rot_array_tilt(rot_degrees1=rot_degrees1, rot_degrees2=rot_degrees2)
         if(rot_degrees1[0]<0):
             max_degree_tilt = -max_degree_tilt
 
-    # finished tilting
-    print(f'Finished tilting: position is pan {new_pan} | tilt {new_tilt}')
-        
-    print("DONE")
+    print(f'[CORRECTING] Done tilting: position is pan {new_pan}, tilt {new_tilt}')
+    print("FINISHED")
 
 if __name__ == '__main__':
     sys.exit(main())
