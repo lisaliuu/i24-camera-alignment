@@ -10,6 +10,9 @@ MAX_FEATURES = 500
 GOOD_MATCH_PERCENT = .15 #idk, copied from online
 
 def align_images(img, img_reference, out_file_postfix):
+    '''
+    Calculates homography using ORB feature detection and writes matches and warped query image
+    '''
     # Make imgs gray for `ORB_create`
     img1_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img2_gray = cv2.cvtColor(img_reference, cv2.COLOR_BGR2GRAY)
@@ -60,7 +63,10 @@ def align_images(img, img_reference, out_file_postfix):
     img_aligned = cv2.warpPerspective(img, M, (w, h))
     return img_aligned, M
 
-def homography(ref_file_name = "ref_image.jpg", img_file_name = "ref_image.jpg", out_file_postfix=""):
+def homography(ref_file_name = "ref_image.jpg", img_file_name = "image.jpg", out_file_postfix=""):
+    '''
+    Reads in files for align_images
+    '''
     # Read the file image
     print("Reading reference image: ", ref_file_name)
     img_reference = cv2.imread(ref_file_name, cv2.IMREAD_COLOR) # Always convert image to the 3 channel BGR color image
@@ -73,8 +79,6 @@ def homography(ref_file_name = "ref_image.jpg", img_file_name = "ref_image.jpg",
         print("Error reading in images.")
     else:
         print("Aligning images ...")
-        # print("img_reference: ", img_reference)
-        # print("img: ", img)
 
         # img_aligned is img after applying h, homography
         img_aligned, h = align_images(img, img_reference, out_file_postfix)
@@ -84,10 +88,12 @@ def homography(ref_file_name = "ref_image.jpg", img_file_name = "ref_image.jpg",
         print("Saving aligned image: ", out_file_name)
         cv2.imwrite(out_file_name, img_aligned)
 
-        # print("Estimated homography: ", h)
         return h
 
 def calibrate_chessboard(width, height):
+    '''
+    Calculates camera intrinsic matrix based on chessboard pictures
+    '''
     success = True
     # termination criteria, number of iterations completed or accuracy is reached
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -146,19 +152,22 @@ def calibrate_chessboard(width, height):
             return mtx
 
     
-# Checks if a matrix is a valid rotation matrix.
 def isRotationMatrix(R) :
+    '''
+    Checks if a matrix is a valid rotation matrix
+    '''
     Rt = np.transpose(R)
     shouldBeIdentity = np.dot(Rt, R)
     I = np.identity(3, dtype = R.dtype)
     n = np.linalg.norm(I - shouldBeIdentity)
     return n < 1e-6
  
-# Calculates rotation matrix to euler angles
-# The result is the same as MATLAB except the order
-# of the euler angles ( x and z are swapped ).
 def rotationMatrixToEulerAngles(R) :
- 
+    '''
+    Calculates rotation matrix to euler angles
+    The result is the same as MATLAB except the order
+    of the euler angles ( x and z are swapped ).
+    '''
     if not isRotationMatrix(R):
         print("ERROR IN ROT MATRIX")
         return [0,0,0]
@@ -174,9 +183,6 @@ def rotationMatrixToEulerAngles(R) :
         y = math.atan2(-R[2,0], sy)
         z = 0
         
-    # cosz = math.cos(z)
-    # if(cosz==0):
-
     return np.array([x, y, z])
 
 
