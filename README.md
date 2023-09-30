@@ -3,10 +3,12 @@
 ## Python script that dynamically aligns a camera to a reference image with OpenCV.
 This Python script is developed for the [I24-MOTION testbed](https://i24motion.org/) data processing pipeline. 
 
-### Motivation
+## Motivation
 1. To research the use of OpenCV in feature detection of highway images.
 2. To investigate the homography and essential matrix calculated and its validity.
 3. To enable dynamic alignment of cameras to a certain view of the highway instead of static alignment to a hard-coded angle. Dynamic camera alignment reduces video processing error as poles supporting the cameras may distort over time.
+
+## Files
 
 ### 1. `feature_detection.py`
 Compares different feature detection algorithms and calculates rotation arrays of sample highway images and a reference image.
@@ -21,17 +23,18 @@ CSV file with have the following columns: `['cam_num', 'abs_pan', 'abs_tilt', 'n
 ### 2. `homography.py`
 Tests the calculation of homography matrix and rotation matrix by calibrating the camera with chessboard images.
 
-### Input:
+#### Input:
 - reference image named `ref_image.jpg` (line 66)
 - query image named `image.jpg` (line 66)
 - chessboard images in format `CAM_*.jpg` (line 109)
 
-### Output:
+#### Output:
 Prints the camera, homography, rotation, translation, and normals matrix.
 
 ### 3. `camera_alignment.py`
 Dynamic camera alignment script.
 #### Algorithm: 
+![camaligndiagram](https://github.com/lisaliuu/i24-camera-alignment/assets/82255401/177a1f4b-c5de-48db-9853-b114ed9cad90)
 
 **(lines 257 - 303):** The camera pans to search for a view that has > 200 feature points matches by taking pictures of the highway at every 20°, tilting by 20° if the camera has been panned 360° at a certain tilt. Once > 200 feature points are found, the homography and rotation matrix is calculated of that camera view to the reference image. 
 
